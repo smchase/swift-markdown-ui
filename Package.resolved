@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "mathjaxswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/colinc86/MathJaxSwift",
+      "state" : {
+        "revision" : "e23d6eab941da699ac4a60fb0e60f3ba5c937459",
+        "version" : "3.4.0"
+      }
+    },
+    {
       "identity" : "networkimage",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gonzalezreal/NetworkImage",
@@ -25,6 +34,15 @@
       "state" : {
         "revision" : "26ed3a2b4a2df47917ca9b790a57f91285b923fb",
         "version" : "1.12.0"
+      }
+    },
+    {
+      "identity" : "swiftdraw",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swhitty/SwiftDraw",
+      "state" : {
+        "revision" : "9b15cec6c2c5dc7ee32321a7a51883cb179a9da0",
+        "version" : "0.26.0"
       }
     }
   ],

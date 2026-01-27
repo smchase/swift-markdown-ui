@@ -61,6 +61,8 @@ private struct AttributedStringInlineRenderer {
       self.renderLink(destination: destination, children: children)
     case .image(let source, let children):
       self.renderImage(source: source, children: children)
+    case .math(let expression):
+      self.renderMath(expression)
     }
   }
 
@@ -153,6 +155,11 @@ private struct AttributedStringInlineRenderer {
 
   private mutating func renderImage(source: String, children: [InlineNode]) {
     // AttributedString does not support images
+  }
+
+  private mutating func renderMath(_ expression: String) {
+    // AttributedString does not support images, render as raw LaTeX
+    self.result += .init("$\(expression)$", attributes: self.attributes)
   }
 }
 

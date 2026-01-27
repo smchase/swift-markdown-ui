@@ -48,6 +48,9 @@ extension ImageFlow {
         }
         data.destination = destination
         items.append(.image(data))
+      case .math:
+        // Math expressions are not images, fail the image flow check
+        return nil
       default:
         return nil
       }

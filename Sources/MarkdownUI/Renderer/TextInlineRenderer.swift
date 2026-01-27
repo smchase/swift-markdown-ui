@@ -5,6 +5,7 @@ extension Sequence where Element == InlineNode {
     baseURL: URL?,
     textStyles: InlineTextStyles,
     images: [String: Image],
+    mathImages: [String: MathImage],
     softBreakMode: SoftBreak.Mode,
     attributes: AttributeContainer
   ) -> Text {
@@ -12,6 +13,7 @@ extension Sequence where Element == InlineNode {
       baseURL: baseURL,
       textStyles: textStyles,
       images: images,
+      mathImages: mathImages,
       softBreakMode: softBreakMode,
       attributes: attributes
     )
@@ -26,6 +28,7 @@ private struct TextInlineRenderer {
   private let baseURL: URL?
   private let textStyles: InlineTextStyles
   private let images: [String: Image]
+  private let mathImages: [String: MathImage]
   private let softBreakMode: SoftBreak.Mode
   private let attributes: AttributeContainer
   private var shouldSkipNextWhitespace = false
@@ -34,12 +37,14 @@ private struct TextInlineRenderer {
     baseURL: URL?,
     textStyles: InlineTextStyles,
     images: [String: Image],
+    mathImages: [String: MathImage],
     softBreakMode: SoftBreak.Mode,
     attributes: AttributeContainer
   ) {
     self.baseURL = baseURL
     self.textStyles = textStyles
     self.images = images
+    self.mathImages = mathImages
     self.softBreakMode = softBreakMode
     self.attributes = attributes
   }
@@ -60,6 +65,8 @@ private struct TextInlineRenderer {
       self.renderHTML(content)
     case .image(let source, _):
       self.renderImage(source)
+    case .math(let expression):
+      self.renderMath(expression)
     default:
       self.defaultRender(inline)
     }
@@ -103,6 +110,15 @@ private struct TextInlineRenderer {
   private mutating func renderImage(_ source: String) {
     if let image = self.images[source] {
       self.result = self.result + Text(image)
+    }
+  }
+
+  private mutating func renderMath(_ expression: String) {
+    if let mathImage = self.mathImages[expression] {
+      self.result = self.result + Text(mathImage.image).baselineOffset(mathImage.baselineOffset)
+    } else {
+      // Show placeholder while loading or on error
+      self.result = self.result + Text("$\(expression)$")
     }
   }
 

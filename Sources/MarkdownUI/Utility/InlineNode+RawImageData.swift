@@ -15,6 +15,8 @@ extension InlineNode {
       guard var imageData = children.first?.imageData else { return nil }
       imageData.destination = destination
       return imageData
+    case .math:
+      return nil
     default:
       return nil
     }

@@ -14,6 +14,8 @@ extension Sequence where Element == InlineNode {
         return [content]
       case .html(let content):
         return [content]
+      case .math(let expression):
+        return [expression]
       default:
         return []
       }

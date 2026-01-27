@@ -195,6 +195,11 @@ public struct Theme: Sendable {
   /// The thematic break style.
   public var thematicBreak = BlockStyle { Divider() }
 
+  /// The math block style.
+  public var mathBlock = BlockStyle<BlockConfiguration> {
+    $0.label.frame(maxWidth: .infinity, alignment: .center)
+  }
+
   /// Creates a theme with default text styles.
   public init() {}
 }
@@ -453,6 +458,16 @@ extension Theme {
   public func thematicBreak<Body: View>(@ViewBuilder body: @escaping () -> Body) -> Theme {
     var theme = self
     theme.thematicBreak = .init(body: body)
+    return theme
+  }
+
+  /// Adds a math block style to the theme.
+  /// - Parameter body: A view builder that returns a customized math block.
+  public func mathBlock<Body: View>(
+    @ViewBuilder body: @escaping (_ configuration: BlockConfiguration) -> Body
+  ) -> Theme {
+    var theme = self
+    theme.mathBlock = .init(body: body)
     return theme
   }
 }

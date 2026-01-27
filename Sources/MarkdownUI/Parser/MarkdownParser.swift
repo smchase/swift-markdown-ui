@@ -333,6 +333,14 @@ extension UnsafeNode {
     case .thematicBreak:
       guard let node = cmark_node_new(CMARK_NODE_THEMATIC_BREAK) else { return nil }
       return node
+    case .mathBlock(let expression):
+      // Math blocks are rendered as paragraphs with $$...$$ when converting back to markdown
+      guard let node = cmark_node_new(CMARK_NODE_PARAGRAPH) else { return nil }
+      if let textNode = cmark_node_new(CMARK_NODE_TEXT) {
+        cmark_node_set_literal(textNode, "$$\(expression)$$")
+        cmark_node_append_child(node, textNode)
+      }
+      return node
     }
   }
 
@@ -417,6 +425,11 @@ extension UnsafeNode {
       guard let node = cmark_node_new(CMARK_NODE_IMAGE) else { return nil }
       cmark_node_set_url(node, source)
       children.compactMap(UnsafeNode.make).forEach { cmark_node_append_child(node, $0) }
+      return node
+    case .math(let expression):
+      // Math expressions are rendered as text with $...$ when converting back to markdown
+      guard let node = cmark_node_new(CMARK_NODE_TEXT) else { return nil }
+      cmark_node_set_literal(node, "$\(expression)$")
       return node
     }
   }
