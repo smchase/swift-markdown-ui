@@ -116,9 +116,9 @@ public final class MathRenderer {
 
       info += "Geometry: width=\(geometry.widthEx)ex, height=\(geometry.heightEx)ex, vAlign=\(geometry.verticalAlignEx)ex\n"
 
-      // Convert ex units to points: 1ex ≈ 0.5em ≈ fontSize * 0.5
-      // Then scale for display
-      let exToPoints = fontSize * 0.5
+      // Convert ex units to points: 1ex ≈ 0.4em
+      // (Standard is ~0.5, but smaller looks better inline with text)
+      let exToPoints = fontSize * 0.4
       let width = geometry.widthEx * exToPoints * displayScale
       let height = geometry.heightEx * exToPoints * displayScale
 
