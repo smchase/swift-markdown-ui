@@ -94,34 +94,41 @@ public final class MathRenderer {
         return nil
       }
 
-      // Extract geometry from SVG attributes
-      let geometry = SVGGeometry(svgString: svgString)
+      // Extract geometry from SVG attributes (in ex units)
+      guard let geometry = SVGGeometry(svgString: svgString) else {
+        return nil
+      }
 
-      // Calculate size based on font size
-      let scale = fontSize / 16.0  // MathJax default is ~16pt equivalent
-      let width = svg.size.width * scale * displayScale
-      let height = svg.size.height * scale * displayScale
+      // Convert ex units to points: 1ex ≈ 0.5em ≈ fontSize * 0.5
+      // Then scale for display
+      let exToPoints = fontSize * 0.5
+      let width = geometry.widthEx * exToPoints * displayScale
+      let height = geometry.heightEx * exToPoints * displayScale
+
+      // Ensure minimum size
+      let finalWidth = max(width, 4)
+      let finalHeight = max(height, 4)
 
       // Rasterize the SVG
-      let scaledSVG = svg.sized(CGSize(width: width, height: height))
+      let scaledSVG = svg.sized(CGSize(width: finalWidth, height: finalHeight))
 
       #if os(macOS)
-      let nsImage = scaledSVG.rasterize(with: CGSize(width: width, height: height), scale: 1.0)
-      // Create a properly sized image
-      nsImage.size = CGSize(width: width / displayScale, height: height / displayScale)
+      let nsImage = scaledSVG.rasterize(with: CGSize(width: finalWidth, height: finalHeight), scale: 1.0)
+      // Create a properly sized image for display (divide by displayScale)
+      nsImage.size = CGSize(width: finalWidth / displayScale, height: finalHeight / displayScale)
       let image = Image(nsImage: nsImage)
       #else
-      let uiImage = scaledSVG.rasterize(size: CGSize(width: width, height: height), scale: displayScale)
+      let uiImage = scaledSVG.rasterize(size: CGSize(width: finalWidth, height: finalHeight), scale: displayScale)
       let image = Image(uiImage: uiImage)
       #endif
 
-      // Calculate baseline offset
-      let baselineOffset = (geometry?.verticalAlign ?? 0) * scale
+      // Calculate baseline offset (convert from ex to points)
+      let baselineOffset = geometry.verticalAlignEx * exToPoints
 
       let mathImage = MathImage(
         image: image,
         baselineOffset: baselineOffset,
-        size: CGSize(width: width / displayScale, height: height / displayScale)
+        size: CGSize(width: finalWidth / displayScale, height: finalHeight / displayScale)
       )
 
       // Cache result
@@ -141,20 +148,38 @@ public final class MathRenderer {
 }
 
 /// Extracts geometry information from MathJax SVG output.
+/// MathJax outputs dimensions in "ex" units.
 struct SVGGeometry {
-  let width: CGFloat
-  let height: CGFloat
-  let verticalAlign: CGFloat
+  let widthEx: CGFloat
+  let heightEx: CGFloat
+  let verticalAlignEx: CGFloat
 
   init?(svgString: String) {
-    // Extract vertical-align from style attribute
-    // MathJax SVGs typically have style="vertical-align: -0.566ex;"
-    self.verticalAlign = Self.extractVerticalAlign(from: svgString) ?? 0
+    // Extract width and height from SVG attributes (in ex units)
+    // MathJax SVGs have attributes like width="5.2ex" height="2.1ex"
+    guard let w = Self.extractDimension(from: svgString, attribute: "width"),
+          let h = Self.extractDimension(from: svgString, attribute: "height") else {
+      return nil
+    }
 
-    // Width and height come from the SVG struct itself
-    // Just store placeholder values - actual dimensions come from SVG.size
-    self.width = 0
-    self.height = 0
+    self.widthEx = w
+    self.heightEx = h
+
+    // Extract vertical-align from style attribute (also in ex)
+    // MathJax SVGs typically have style="vertical-align: -0.566ex;"
+    self.verticalAlignEx = Self.extractVerticalAlign(from: svgString) ?? 0
+  }
+
+  private static func extractDimension(from svg: String, attribute: String) -> CGFloat? {
+    // Look for attribute="Xex" pattern
+    let pattern = "\(attribute)=\"([\\d.]+)ex\""
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+          let match = regex.firstMatch(in: svg, range: NSRange(svg.startIndex..., in: svg)),
+          let range = Range(match.range(at: 1), in: svg),
+          let value = Double(svg[range]) else {
+      return nil
+    }
+    return CGFloat(value)
   }
 
   private static func extractVerticalAlign(from svg: String) -> CGFloat? {
@@ -166,8 +191,6 @@ struct SVGGeometry {
           let value = Double(svg[range]) else {
       return nil
     }
-
-    // Convert ex to points (1ex ≈ 8pt at default font size)
-    return CGFloat(value) * 8.0
+    return CGFloat(value)
   }
 }

@@ -1,7 +1,7 @@
 import Foundation
 
 extension Sequence where Element == BlockNode {
-  /// Extracts math blocks from paragraphs containing only `$$...$$` content.
+  /// Extracts math blocks from paragraphs containing `$$...$$` content.
   /// Also extracts inline math from all inline content.
   func extractingMath() -> [BlockNode] {
     self.flatMap { block -> [BlockNode] in
@@ -15,12 +15,8 @@ extension BlockNode {
   func extractingMath() -> [BlockNode] {
     switch self {
     case .paragraph(let content):
-      // Check if paragraph contains only a block math expression
-      if let mathBlock = extractMathBlock(from: content) {
-        return [mathBlock]
-      }
-      // Otherwise, extract inline math from the paragraph content
-      return [.paragraph(content: content.extractingMath())]
+      // Check for $$...$$ block math and split if needed
+      return extractBlockMathFromParagraph(content: content)
 
     case .heading(let level, let content):
       return [.heading(level: level, content: content.extractingMath())]
@@ -65,10 +61,10 @@ extension BlockNode {
   }
 }
 
-/// Checks if a paragraph contains only a `$$...$$` block math expression.
-/// - Returns: A `.mathBlock` node if the paragraph is purely block math, otherwise nil.
-private func extractMathBlock(from content: [InlineNode]) -> BlockNode? {
-  // Collect all text content, ignoring soft breaks
+/// Extracts block math ($$...$$) from a paragraph, potentially splitting it into multiple blocks.
+/// Returns: Array of blocks - could be single paragraph, or paragraph + mathBlock + paragraph etc.
+private func extractBlockMathFromParagraph(content: [InlineNode]) -> [BlockNode] {
+  // First, collect all text to find $$...$$ patterns
   var fullText = ""
   for inline in content {
     switch inline {
@@ -79,27 +75,55 @@ private func extractMathBlock(from content: [InlineNode]) -> BlockNode? {
     case .lineBreak:
       fullText += "\n"
     default:
-      // If there's any non-text content, this isn't a pure math block
-      return nil
+      // Non-text content - just extract inline math and return as single paragraph
+      return [.paragraph(content: content.extractingMath())]
     }
   }
 
-  let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+  // Look for $$...$$ pattern
+  guard let mathRange = findBlockMath(in: fullText) else {
+    // No block math, just extract inline math
+    return [.paragraph(content: content.extractingMath())]
+  }
 
-  // Check for $$...$$ pattern
-  guard trimmed.hasPrefix("$$") && trimmed.hasSuffix("$$") && trimmed.count > 4 else {
+  var result: [BlockNode] = []
+
+  // Text before the math block
+  let beforeText = String(fullText[..<mathRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+  if !beforeText.isEmpty {
+    result.append(.paragraph(content: [InlineNode.text(beforeText)].extractingMath()))
+  }
+
+  // The math block itself
+  let mathStart = fullText.index(mathRange.lowerBound, offsetBy: 2)
+  let mathEnd = fullText.index(mathRange.upperBound, offsetBy: -2)
+  if mathStart < mathEnd {
+    let expression = String(fullText[mathStart..<mathEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+    if !expression.isEmpty {
+      result.append(.mathBlock(expression: expression))
+    }
+  }
+
+  // Text after the math block - recursively process for more $$...$$
+  let afterText = String(fullText[mathRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+  if !afterText.isEmpty {
+    let afterBlocks = extractBlockMathFromParagraph(content: [.text(afterText)])
+    result.append(contentsOf: afterBlocks)
+  }
+
+  return result.isEmpty ? [.paragraph(content: content.extractingMath())] : result
+}
+
+/// Finds the first $$...$$ pattern in the text.
+/// Returns the range including the $$ delimiters.
+private func findBlockMath(in text: String) -> Range<String.Index>? {
+  guard let startRange = text.range(of: "$$") else { return nil }
+
+  let searchStart = text.index(startRange.upperBound, offsetBy: 0)
+  guard searchStart < text.endIndex,
+        let endRange = text.range(of: "$$", range: searchStart..<text.endIndex) else {
     return nil
   }
 
-  // Extract the expression (remove $$ from both ends)
-  let startIndex = trimmed.index(trimmed.startIndex, offsetBy: 2)
-  let endIndex = trimmed.index(trimmed.endIndex, offsetBy: -2)
-
-  guard startIndex < endIndex else { return nil }
-
-  let expression = String(trimmed[startIndex..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-
-  guard !expression.isEmpty else { return nil }
-
-  return .mathBlock(expression: expression)
+  return startRange.lowerBound..<endRange.upperBound
 }
