@@ -89,42 +89,21 @@ public final class MathRenderer {
       // Render to SVG
       let svgString = try await mathJax.tex2svg(expression)
 
-      // Debug: write raw SVG to file
-      let debugDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".saiman/math-debug")
-      try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
-      let sanitizedExpr = expression.prefix(20).replacingOccurrences(of: "/", with: "_")
-      let debugFile = debugDir.appendingPathComponent("\(sanitizedExpr).svg")
-      try? svgString.write(to: debugFile, atomically: true, encoding: .utf8)
-
-      // Also write geometry info
-      let infoFile = debugDir.appendingPathComponent("\(sanitizedExpr).txt")
-      var info = "Expression: \(expression)\n"
-      info += "SVG length: \(svgString.count)\n"
-      info += "SVG preview: \(svgString.prefix(800))\n"
-
       // Parse SVG
       guard let svg = SVG(xml: svgString) else {
-        print("MathRenderer: Failed to parse SVG")
         return nil
       }
 
       // Extract geometry from SVG attributes (in ex units)
       guard let geometry = SVGGeometry(svgString: svgString) else {
-        print("MathRenderer: Failed to extract geometry")
         return nil
       }
-
-      info += "Geometry: width=\(geometry.widthEx)ex, height=\(geometry.heightEx)ex, vAlign=\(geometry.verticalAlignEx)ex\n"
 
       // Convert ex units to points: 1ex ≈ 0.4em
       // (Standard is ~0.5, but smaller looks better inline with text)
       let exToPoints = fontSize * 0.4
       let width = geometry.widthEx * exToPoints * displayScale
       let height = geometry.heightEx * exToPoints * displayScale
-
-      info += "Calculated: width=\(width), height=\(height), fontSize=\(fontSize), displayScale=\(displayScale)\n"
-      info += "Final: width=\(max(width, 4)), height=\(max(height, 4))\n"
-      try? info.write(to: infoFile, atomically: true, encoding: .utf8)
 
       // Ensure minimum size
       let finalWidth = max(width, 4)

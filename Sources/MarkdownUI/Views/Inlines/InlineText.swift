@@ -23,7 +23,6 @@ struct InlineText: View {
   }
 
   var body: some View {
-    let _ = debugLogInlines()
     TextStyleAttributesReader { attributes in
       self.processedInlines.renderText(
         baseURL: self.baseURL,
@@ -99,20 +98,6 @@ struct InlineText: View {
       }
 
       return mathImages
-    }
-  }
-
-  private func debugLogInlines() {
-    let debugDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".saiman/math-debug")
-    try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
-    let debugFile = debugDir.appendingPathComponent("inlinetext.log")
-    let logEntry = "InlineText body called with \(inlines.count) inlines: \(String(describing: inlines).prefix(300))\n"
-    if let handle = try? FileHandle(forWritingTo: debugFile) {
-      handle.seekToEndOfFile()
-      handle.write(logEntry.data(using: .utf8)!)
-      handle.closeFile()
-    } else {
-      try? logEntry.write(to: debugFile, atomically: false, encoding: .utf8)
     }
   }
 

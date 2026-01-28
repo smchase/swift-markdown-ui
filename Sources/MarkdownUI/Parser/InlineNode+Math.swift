@@ -25,19 +25,6 @@ extension Sequence where Element == InlineNode {
 /// Splits a text string by `$...$` math delimiters.
 /// - Returns: An array of InlineNodes with `.text` and `.math` nodes.
 private func splitTextByMath(_ text: String) -> [InlineNode] {
-  // Debug: log what text we're processing
-  let debugDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".saiman/math-debug")
-  try? FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
-  let debugFile = debugDir.appendingPathComponent("extraction.log")
-  let logEntry = "splitTextByMath: \(text.prefix(200))\n"
-  if let handle = try? FileHandle(forWritingTo: debugFile) {
-    handle.seekToEndOfFile()
-    handle.write(logEntry.data(using: .utf8)!)
-    handle.closeFile()
-  } else {
-    try? logEntry.write(to: debugFile, atomically: false, encoding: .utf8)
-  }
-
   var result: [InlineNode] = []
   var currentIndex = text.startIndex
   var textBuffer = ""
@@ -86,12 +73,6 @@ private func splitTextByMath(_ text: String) -> [InlineNode] {
         }
 
         // Add math node
-        let mathLogEntry = "FOUND MATH: \(expression)\n"
-        if let handle = try? FileHandle(forWritingTo: debugFile) {
-          handle.seekToEndOfFile()
-          handle.write(mathLogEntry.data(using: .utf8)!)
-          handle.closeFile()
-        }
         result.append(.math(expression: expression))
         currentIndex = endIndex
         continue
