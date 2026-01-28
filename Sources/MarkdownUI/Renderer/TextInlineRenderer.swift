@@ -115,7 +115,7 @@ private struct TextInlineRenderer {
 
   private mutating func renderMath(_ expression: String) {
     if let mathImage = self.mathImages[expression] {
-      // Use template rendering mode and explicit foreground color for dark mode support
+      // Use template rendering mode so the image inherits foreground color from environment
       self.result = self.result + Text(mathImage.image.renderingMode(.template))
         .foregroundColor(self.attributes.foregroundColor)
         .baselineOffset(mathImage.baselineOffset)
