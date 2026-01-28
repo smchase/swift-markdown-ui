@@ -7,9 +7,17 @@ struct InlineText: View {
   @Environment(\.softBreakMode) private var softBreakMode
   @Environment(\.theme) private var theme
   @Environment(\.displayScale) private var displayScale
+  @Environment(\.textStyle) private var textStyle
 
   @State private var inlineImages: [String: Image] = [:]
   @State private var mathImages: [String: MathImage] = [:]
+
+  /// The current font size from the text style environment.
+  private var fontSize: CGFloat {
+    var attributes = AttributeContainer()
+    textStyle._collectAttributes(in: &attributes)
+    return attributes.fontProperties?.scaledSize ?? FontProperties.defaultSize
+  }
 
   private let inlines: [InlineNode]
 
@@ -76,13 +84,16 @@ struct InlineText: View {
     let mathExpressions = collectMathExpressions(from: processedInlines)
     guard !mathExpressions.isEmpty else { return [:] }
 
+    // Capture font size before entering async context
+    let fontSize = self.fontSize
+
     return await withTaskGroup(of: (String, MathImage?).self) { taskGroup in
       for expression in mathExpressions {
         taskGroup.addTask {
           let image = await MathRenderer.shared.render(
             expression: expression,
             isBlock: false,
-            fontSize: 16,  // Will be adjusted by the renderer
+            fontSize: fontSize,
             displayScale: self.displayScale
           )
           return (expression, image)

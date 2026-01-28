@@ -99,9 +99,8 @@ public final class MathRenderer {
         return nil
       }
 
-      // Convert ex units to points: 1ex ≈ 0.4em
-      // (Standard is ~0.5, but smaller looks better inline with text)
-      let exToPoints = fontSize * 0.4
+      // Convert ex units to points: 1ex ≈ 0.5em (standard typographic ratio)
+      let exToPoints = fontSize * 0.5
       let width = geometry.widthEx * exToPoints * displayScale
       let height = geometry.heightEx * exToPoints * displayScale
 
