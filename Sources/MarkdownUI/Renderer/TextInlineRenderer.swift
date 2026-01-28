@@ -115,7 +115,11 @@ private struct TextInlineRenderer {
 
   private mutating func renderMath(_ expression: String) {
     if let mathImage = self.mathImages[expression] {
-      self.result = self.result + Text(mathImage.image).baselineOffset(mathImage.baselineOffset)
+      // Use template rendering mode so math inherits text color (for dark mode)
+      self.result = self.result + Text(
+        mathImage.image
+          .renderingMode(.template)
+      ).baselineOffset(mathImage.baselineOffset)
     } else {
       // Show placeholder while loading or on error
       self.result = self.result + Text("$\(expression)$")
