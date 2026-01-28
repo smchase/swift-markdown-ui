@@ -197,7 +197,9 @@ public struct Theme: Sendable {
 
   /// The math block style.
   public var mathBlock = BlockStyle<BlockConfiguration> {
-    $0.label.frame(maxWidth: .infinity, alignment: .center)
+    $0.label
+      .frame(maxWidth: .infinity, alignment: .center)
+      .markdownMargin(top: .em(1), bottom: .em(1))
   }
 
   /// Creates a theme with default text styles.
