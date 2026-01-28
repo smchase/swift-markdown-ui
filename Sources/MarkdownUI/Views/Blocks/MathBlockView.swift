@@ -5,7 +5,6 @@ struct MathBlockView: View {
   @Environment(\.displayScale) private var displayScale
 
   @State private var mathImage: MathImage?
-  @State private var isLoading = true
 
   private let expression: String
 
@@ -25,21 +24,13 @@ struct MathBlockView: View {
   @ViewBuilder
   private var label: some View {
     TextStyleAttributesReader { attributes in
-      let fontSize = attributes.fontProperties?.size ?? 16
-
       if let mathImage = self.mathImage {
         mathImage.image
           .renderingMode(.template)
           .foregroundColor(attributes.foregroundColor)
-      } else if isLoading {
-        // Show placeholder while loading
-        Text("$$\(expression)$$")
-          .font(.system(size: fontSize, design: .monospaced))
-          .foregroundColor(.secondary)
       } else {
-        // Show original if rendering failed
+        // Show placeholder while loading or if rendering failed
         Text("$$\(expression)$$")
-          .font(.system(size: fontSize, design: .monospaced))
       }
     }
     .task(id: expression) {
@@ -48,18 +39,11 @@ struct MathBlockView: View {
   }
 
   private func renderMath() async {
-    isLoading = true
-
-    // Get font size from environment
-    let fontSize: CGFloat = 16  // Default, will be overridden by TextStyleAttributesReader
-
     mathImage = await MathRenderer.shared.render(
       expression: expression,
       isBlock: true,
-      fontSize: fontSize,
+      fontSize: 16,
       displayScale: displayScale
     )
-
-    isLoading = false
   }
 }
