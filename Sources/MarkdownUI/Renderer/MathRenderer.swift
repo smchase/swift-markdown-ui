@@ -86,8 +86,11 @@ public final class MathRenderer {
 
       guard let mathJax = mathJax else { return nil }
 
-      // Render to SVG
-      let svgString = try await mathJax.tex2svg(expression)
+      // Render to SVG with all TeX packages enabled
+      let texOptions = TeXInputProcessorOptions(
+        loadPackages: TeXInputProcessorOptions.Packages.all
+      )
+      let svgString = try await mathJax.tex2svg(expression, inputOptions: texOptions)
 
       // Parse SVG
       guard let svg = SVG(xml: svgString) else {
