@@ -67,33 +67,28 @@ private struct TextInlineRenderer {
       self.renderImage(source)
     case .math(let expression):
       self.renderMath(expression)
-    case .emphasis(let children), .strong(let children), .strikethrough(let children),
-         .link(_, let children):
-      // Check if any descendant is a .math node — if so, render children directly
-      // so math images are used instead of the attributed string fallback
-      if containsMath(children) {
-        self.render(children)
-      } else {
-        self.defaultRender(inline)
-      }
+    case .strong(let children):
+      self.renderStyledChildren(children) { $0.bold() }
+    case .emphasis(let children):
+      self.renderStyledChildren(children) { $0.italic() }
+    case .strikethrough(let children):
+      self.renderStyledChildren(children) { $0.strikethrough() }
     default:
       self.defaultRender(inline)
     }
   }
 
-  /// Returns true if any descendant inline node is a `.math` node.
-  private func containsMath(_ inlines: [InlineNode]) -> Bool {
-    for inline in inlines {
-      switch inline {
-      case .math:
-        return true
-      case .emphasis(let c), .strong(let c), .strikethrough(let c), .link(_, let c):
-        if containsMath(c) { return true }
-      default:
-        break
-      }
-    }
-    return false
+  /// Renders children into a Text segment, then applies a style modifier.
+  /// This handles math images inside styled nodes (bold, italic, strikethrough)
+  /// which the AttributedString path cannot do.
+  private mutating func renderStyledChildren(
+    _ children: [InlineNode],
+    style: (Text) -> Text
+  ) {
+    let saved = self.result
+    self.result = Text("")
+    self.render(children)
+    self.result = saved + style(self.result)
   }
 
   private mutating func renderText(_ text: String) {
