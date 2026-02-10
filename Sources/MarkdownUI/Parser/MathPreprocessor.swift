@@ -158,8 +158,8 @@ enum MathPreprocessor {
   /// `from` is the index after the opening `$`.
   /// Returns (expression content, index after closing `$`).
   private static func findInlineMathEnd(_ chars: [Character], from start: Int) -> (String, Int)? {
-    // Opening $ must not be followed by whitespace or another $
-    guard start < chars.count, !chars[start].isWhitespace, chars[start] != "$" else {
+    // Opening $ must not be followed by whitespace, another $, or a digit (currency like $5)
+    guard start < chars.count, !chars[start].isWhitespace, chars[start] != "$", !chars[start].isNumber else {
       return nil
     }
 
@@ -172,10 +172,6 @@ enum MathPreprocessor {
       }
 
       if chars[j] == "$" {
-        // Reject $$ (that's block math)
-        if j + 1 < chars.count && chars[j + 1] == "$" {
-          return nil
-        }
         // Reject if closing $ is followed by a digit (currency: "$5 to $10")
         if j + 1 < chars.count && chars[j + 1].isNumber {
           j += 1
