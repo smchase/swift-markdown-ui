@@ -15,7 +15,6 @@ extension BlockNode {
   func extractingMath() -> [BlockNode] {
     switch self {
     case .paragraph(let content):
-      // Check for $$...$$ block math and split if needed
       return extractBlockMathFromParagraph(content: content)
 
     case .heading(let level, let content):
@@ -61,10 +60,9 @@ extension BlockNode {
   }
 }
 
-/// Extracts block math ($$...$$) from a paragraph, potentially splitting it into multiple blocks.
-/// Returns: Array of blocks - could be single paragraph, or paragraph + mathBlock + paragraph etc.
+/// Extracts block math placeholders from a paragraph, splitting into multiple blocks.
 private func extractBlockMathFromParagraph(content: [InlineNode]) -> [BlockNode] {
-  // First, collect all text to find $$...$$ patterns
+  // Collect all text to find $$MATH_BLOCK:....$$ placeholders
   var fullText = ""
   for inline in content {
     switch inline {
@@ -75,55 +73,50 @@ private func extractBlockMathFromParagraph(content: [InlineNode]) -> [BlockNode]
     case .lineBreak:
       fullText += "\n"
     default:
-      // Non-text content - just extract inline math and return as single paragraph
+      // Non-text content — just extract inline math and return as paragraph
       return [.paragraph(content: content.extractingMath())]
     }
   }
 
-  // Look for $$...$$ pattern
-  guard let mathRange = findBlockMath(in: fullText) else {
-    // No block math, just extract inline math
+  // Look for $$MATH_BLOCK:base64$$ placeholder
+  let prefix = "$$" + MathPreprocessor.blockPrefix
+  let suffix = "$$"
+
+  guard let prefixRange = fullText.range(of: prefix) else {
+    // No block math placeholder — extract inline math only
+    return [.paragraph(content: content.extractingMath())]
+  }
+
+  let searchStart = prefixRange.upperBound
+  guard let suffixRange = fullText.range(of: suffix, range: searchStart..<fullText.endIndex) else {
+    return [.paragraph(content: content.extractingMath())]
+  }
+
+  // Decode the base64 expression
+  let encoded = String(fullText[searchStart..<suffixRange.lowerBound])
+  guard let expression = MathPreprocessor.decode(encoded), !expression.isEmpty else {
     return [.paragraph(content: content.extractingMath())]
   }
 
   var result: [BlockNode] = []
 
-  // Text before the math block
-  let beforeText = String(fullText[..<mathRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+  // Text before the placeholder
+  let beforeText = String(fullText[..<prefixRange.lowerBound])
+    .trimmingCharacters(in: .whitespacesAndNewlines)
   if !beforeText.isEmpty {
     result.append(.paragraph(content: [InlineNode.text(beforeText)].extractingMath()))
   }
 
-  // The math block itself
-  let mathStart = fullText.index(mathRange.lowerBound, offsetBy: 2)
-  let mathEnd = fullText.index(mathRange.upperBound, offsetBy: -2)
-  if mathStart < mathEnd {
-    let expression = String(fullText[mathStart..<mathEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
-    if !expression.isEmpty {
-      result.append(.mathBlock(expression: expression))
-    }
-  }
+  // The math block
+  result.append(.mathBlock(expression: expression))
 
-  // Text after the math block - recursively process for more $$...$$
-  let afterText = String(fullText[mathRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+  // Text after the placeholder — recursively process for more block math
+  let afterText = String(fullText[suffixRange.upperBound...])
+    .trimmingCharacters(in: .whitespacesAndNewlines)
   if !afterText.isEmpty {
     let afterBlocks = extractBlockMathFromParagraph(content: [.text(afterText)])
     result.append(contentsOf: afterBlocks)
   }
 
   return result.isEmpty ? [.paragraph(content: content.extractingMath())] : result
-}
-
-/// Finds the first $$...$$ pattern in the text.
-/// Returns the range including the $$ delimiters.
-private func findBlockMath(in text: String) -> Range<String.Index>? {
-  guard let startRange = text.range(of: "$$") else { return nil }
-
-  let searchStart = text.index(startRange.upperBound, offsetBy: 0)
-  guard searchStart < text.endIndex,
-        let endRange = text.range(of: "$$", range: searchStart..<text.endIndex) else {
-    return nil
-  }
-
-  return startRange.lowerBound..<endRange.upperBound
 }

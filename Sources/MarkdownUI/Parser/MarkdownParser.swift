@@ -247,9 +247,12 @@ extension UnsafeNode {
       cmark_parser_attach_syntax_extension(parser, syntaxExtension)
     }
 
+    // Pre-process math expressions to protect them from cmark's backslash escaping
+    let processedMarkdown = MathPreprocessor.protect(markdown)
+
     // Parse the Markdown document
 
-    cmark_parser_feed(parser, markdown, markdown.utf8.count)
+    cmark_parser_feed(parser, processedMarkdown, processedMarkdown.utf8.count)
 
     guard let document = cmark_parser_finish(parser) else {
       return nil

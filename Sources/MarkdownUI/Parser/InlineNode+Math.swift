@@ -1,12 +1,12 @@
 import Foundation
 
 extension Sequence where Element == InlineNode {
-  /// Extracts math expressions from text nodes, converting `$...$` patterns to `.math` nodes.
+  /// Extracts math expressions from text nodes, converting `$MATH:base64$` placeholders to `.math` nodes.
   func extractingMath() -> [InlineNode] {
     self.flatMap { inline -> [InlineNode] in
       switch inline {
       case .text(let content):
-        return splitTextByMath(content)
+        return splitTextByMathPlaceholders(content)
       case .emphasis(let children):
         return [.emphasis(children: children.extractingMath())]
       case .strong(let children):
@@ -22,99 +22,61 @@ extension Sequence where Element == InlineNode {
   }
 }
 
-/// Splits a text string by `$...$` math delimiters.
-/// - Returns: An array of InlineNodes with `.text` and `.math` nodes.
-private func splitTextByMath(_ text: String) -> [InlineNode] {
+/// Splits a text string by `$MATH:base64$` placeholders.
+/// Returns an array of InlineNodes with `.text` and `.math` nodes.
+private func splitTextByMathPlaceholders(_ text: String) -> [InlineNode] {
+  let prefix = "$" + MathPreprocessor.inlinePrefix
   var result: [InlineNode] = []
-  var currentIndex = text.startIndex
-  var textBuffer = ""
+  var remaining = text[text.startIndex..<text.endIndex]
 
-  while currentIndex < text.endIndex {
-    // Look for opening $
-    if text[currentIndex] == "$" {
-      // Check for $$ (block math delimiter - skip, handled at block level)
-      let nextIndex = text.index(after: currentIndex)
-      if nextIndex < text.endIndex && text[nextIndex] == "$" {
-        textBuffer.append("$")
-        currentIndex = nextIndex
-        textBuffer.append("$")
-        currentIndex = text.index(after: currentIndex)
-        continue
-      }
+  while !remaining.isEmpty {
+    // Look for the next $MATH: placeholder
+    guard let prefixRange = remaining.range(of: prefix) else {
+      // No more placeholders — append remaining text
+      let s = String(remaining)
+      if !s.isEmpty { result.append(.text(s)) }
+      break
+    }
 
-      // Look for closing $
-      if let (expression, endIndex) = findClosingDelimiter(in: text, from: nextIndex) {
-        // Check if this looks like currency (closing $ followed by digit)
-        if endIndex < text.endIndex {
-          let charAfter = text[endIndex]
-          if charAfter.isNumber {
-            // This is currency, not math
-            textBuffer.append(text[currentIndex])
-            currentIndex = nextIndex
-            continue
-          }
-        }
-
-        // Check if opening $ is preceded by digit (likely currency)
-        if currentIndex > text.startIndex {
-          let charBefore = text[text.index(before: currentIndex)]
-          if charBefore.isNumber {
-            // This is currency, not math
-            textBuffer.append(text[currentIndex])
-            currentIndex = nextIndex
-            continue
-          }
-        }
-
-        // Flush text buffer
-        if !textBuffer.isEmpty {
-          result.append(.text(textBuffer))
-          textBuffer = ""
-        }
-
-        // Add math node
-        result.append(.math(expression: expression))
-        currentIndex = endIndex
+    // Make sure this isn't part of $$MATH_BLOCK: (check for preceding $)
+    if prefixRange.lowerBound > remaining.startIndex {
+      let charBefore = remaining[remaining.index(before: prefixRange.lowerBound)]
+      if charBefore == "$" {
+        // This is $$MATH_BLOCK:, not $MATH: — skip past this $
+        let beforeAndDollar = String(remaining[remaining.startIndex...prefixRange.lowerBound])
+        result.append(.text(beforeAndDollar))
+        remaining = remaining[remaining.index(after: prefixRange.lowerBound)..<remaining.endIndex]
         continue
       }
     }
 
-    textBuffer.append(text[currentIndex])
-    currentIndex = text.index(after: currentIndex)
-  }
+    // Text before the placeholder
+    let before = String(remaining[remaining.startIndex..<prefixRange.lowerBound])
+    if !before.isEmpty {
+      result.append(.text(before))
+    }
 
-  // Flush remaining text
-  if !textBuffer.isEmpty {
-    result.append(.text(textBuffer))
+    // Find closing $
+    let searchStart = prefixRange.upperBound
+    guard let closingRange = remaining.range(of: "$", range: searchStart..<remaining.endIndex) else {
+      // No closing $ — treat as regular text
+      let s = String(remaining[prefixRange.lowerBound..<remaining.endIndex])
+      if !s.isEmpty { result.append(.text(s)) }
+      break
+    }
+
+    // Decode the base64 expression
+    let encoded = String(remaining[searchStart..<closingRange.lowerBound])
+    if let expression = MathPreprocessor.decode(encoded), !expression.isEmpty {
+      result.append(.math(expression: expression))
+    } else {
+      // Decoding failed — output as text
+      let s = String(remaining[prefixRange.lowerBound..<closingRange.upperBound])
+      result.append(.text(s))
+    }
+
+    remaining = remaining[closingRange.upperBound..<remaining.endIndex]
   }
 
   return result.isEmpty ? [.text("")] : result
-}
-
-/// Finds the closing `$` delimiter for inline math.
-/// - Returns: Tuple of (expression content, index after closing delimiter) or nil if not found.
-private func findClosingDelimiter(in text: String, from start: String.Index) -> (String, String.Index)? {
-  var index = start
-  var expression = ""
-
-  while index < text.endIndex {
-    let char = text[index]
-
-    if char == "$" {
-      // Found closing delimiter
-      // Don't accept empty expressions
-      guard !expression.isEmpty else { return nil }
-      return (expression, text.index(after: index))
-    }
-
-    // Don't allow newlines in inline math
-    if char == "\n" {
-      return nil
-    }
-
-    expression.append(char)
-    index = text.index(after: index)
-  }
-
-  return nil
 }
