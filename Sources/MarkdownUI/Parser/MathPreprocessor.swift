@@ -1,17 +1,5 @@
 import Foundation
 
-private func debugLog(_ message: String) {
-  let path = NSHomeDirectory() + "/.saiman/logs/math-debug.log"
-  let line = message + "\n"
-  if let handle = FileHandle(forWritingAtPath: path) {
-    handle.seekToEndOfFile()
-    handle.write(line.data(using: .utf8)!)
-    handle.closeFile()
-  } else {
-    FileManager.default.createFile(atPath: path, contents: line.data(using: .utf8))
-  }
-}
-
 /// Pre-processes a markdown string to protect LaTeX math expressions from cmark-gfm parsing.
 ///
 /// cmark-gfm strips backslashes before ASCII punctuation (`\{` → `{`, `\$` → `$`, etc.),
@@ -34,8 +22,6 @@ enum MathPreprocessor {
     var inFencedCodeBlock = false
     var fenceChar: Character = "`"
     var fenceLength = 0
-    var blockMathCount = 0
-    var inlineMathCount = 0
 
     while i < chars.count {
 
@@ -98,15 +84,10 @@ enum MathPreprocessor {
       // --- Block math: $$ ... $$ ---
       if i + 1 < chars.count && chars[i] == "$" && chars[i + 1] == "$" {
         if let (expression, endIndex) = findBlockMathEnd(chars, from: i + 2) {
-          blockMathCount += 1
-          let preview = expression.prefix(60).replacingOccurrences(of: "\n", with: "\\n")
-          debugLog("[MathPreprocessor] Block math #\(blockMathCount): \(preview)...")
           let encoded = encode(expression)
           result.append(contentsOf: "$$MATH_BLOCK:\(encoded)$$")
           i = endIndex
           continue
-        } else {
-          debugLog("[MathPreprocessor] $$ at pos \(i) — no closing $$ found")
         }
       }
 
@@ -119,9 +100,6 @@ enum MathPreprocessor {
 
         if !precededByDigit && !precededByBackslash {
           if let (expression, endIndex) = findInlineMathEnd(chars, from: i + 1) {
-            inlineMathCount += 1
-            let preview = expression.prefix(50)
-            debugLog("[MathPreprocessor] Inline math #\(inlineMathCount): \(preview)")
             let encoded = encode(expression)
             result.append(contentsOf: "$MATH:\(encoded)$")
             i = endIndex
@@ -134,7 +112,6 @@ enum MathPreprocessor {
       i += 1
     }
 
-    debugLog("[MathPreprocessor] Done: \(blockMathCount) block, \(inlineMathCount) inline math expressions found")
     return String(result)
   }
 
