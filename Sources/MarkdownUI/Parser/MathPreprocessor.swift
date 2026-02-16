@@ -83,7 +83,11 @@ enum MathPreprocessor {
 
       // --- Block math: $$ ... $$ ---
       if i + 1 < chars.count && chars[i] == "$" && chars[i + 1] == "$" {
-        if let (expression, endIndex) = findBlockMathEnd(chars, from: i + 2) {
+        // The character after $$ must be able to start a math expression.
+        // This prevents currency patterns like "$$ prices", "$$$$", "$$," from
+        // being mistakenly parsed as block math delimiters.
+        if i + 2 < chars.count && canStartBlockMath(chars[i + 2]),
+           let (expression, endIndex) = findBlockMathEnd(chars, from: i + 2) {
           let encoded = encode(expression)
           result.append(contentsOf: "$$MATH_BLOCK:\(encoded)$$")
           i = endIndex
@@ -227,6 +231,15 @@ enum MathPreprocessor {
     guard length >= 3 else { return (false, "`", 0) }
 
     return (true, fc, length)
+  }
+
+  /// Whether a character can legitimately start a block math expression.
+  /// Letters, digits, backslash (LaTeX commands), opening delimiters, minus (negation),
+  /// pipe (absolute value), and newline (multi-line block math) are valid.
+  /// Spaces, punctuation, and dollar signs are not — this rejects currency patterns
+  /// like "$$ prices", "$$,", and dollar runs like "$$$$".
+  private static func canStartBlockMath(_ c: Character) -> Bool {
+    c.isLetter || c.isNumber || c == "\\" || c == "{" || c == "(" || c == "[" || c == "-" || c == "|" || c == "\n"
   }
 
   /// Counts consecutive occurrences of `char` starting at `index`.
