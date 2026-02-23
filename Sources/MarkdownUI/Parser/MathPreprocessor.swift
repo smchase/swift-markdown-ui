@@ -239,7 +239,7 @@ enum MathPreprocessor {
   /// Spaces, punctuation, and dollar signs are not — this rejects currency patterns
   /// like "$$ prices", "$$,", and dollar runs like "$$$$".
   private static func canStartBlockMath(_ c: Character) -> Bool {
-    c.isLetter || c.isNumber || c == "\\" || c == "{" || c == "(" || c == "[" || c == "-" || c == "|" || c == "\n"
+    c.isLetter || c.isNumber || c == "\\" || c == "{" || c == "(" || c == "[" || c == "-" || c == "|" || c == "=" || c == "+" || c == "\n"
   }
 
   /// Counts consecutive occurrences of `char` starting at `index`.
