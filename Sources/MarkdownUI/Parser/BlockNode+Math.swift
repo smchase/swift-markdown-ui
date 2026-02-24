@@ -61,62 +61,77 @@ extension BlockNode {
 }
 
 /// Extracts block math placeholders from a paragraph, splitting into multiple blocks.
+///
+/// When `$$...$$` appears on the same line(s) as rich inline content (e.g. `**Total:**\n$$...$$`),
+/// cmark merges them into a single paragraph with mixed inline nodes (strong, softBreak, text, etc.).
+/// We scan individual text nodes for the placeholder rather than requiring an all-text paragraph.
 private func extractBlockMathFromParagraph(content: [InlineNode]) -> [BlockNode] {
-  // Collect all text to find $$MATH_BLOCK:....$$ placeholders
-  var fullText = ""
-  for inline in content {
-    switch inline {
-    case .text(let text):
-      fullText += text
-    case .softBreak:
-      fullText += " "
-    case .lineBreak:
-      fullText += "\n"
-    default:
-      // Non-text content — just extract inline math and return as paragraph
-      return [.paragraph(content: content.extractingMath())]
-    }
-  }
-
-  // Look for $$MATH_BLOCK:base64$$ placeholder
   let prefix = "$$" + MathPreprocessor.blockPrefix
   let suffix = "$$"
 
-  guard let prefixRange = fullText.range(of: prefix) else {
-    // No block math placeholder — extract inline math only
-    return [.paragraph(content: content.extractingMath())]
+  // Find the first text node containing a block math placeholder
+  for (index, inline) in content.enumerated() {
+    guard case .text(let text) = inline,
+          let prefixRange = text.range(of: prefix) else {
+      continue
+    }
+
+    let searchStart = prefixRange.upperBound
+    guard let suffixRange = text.range(of: suffix, range: searchStart..<text.endIndex) else {
+      continue
+    }
+
+    // Decode the base64 expression
+    let encoded = String(text[searchStart..<suffixRange.lowerBound])
+    guard let expression = MathPreprocessor.decode(encoded), !expression.isEmpty else {
+      continue
+    }
+
+    var result: [BlockNode] = []
+
+    // Everything before the placeholder: preceding inline nodes + text before the marker
+    var beforeInlines = Array(content[..<index])
+    let beforeText = String(text[..<prefixRange.lowerBound])
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if !beforeText.isEmpty {
+      beforeInlines.append(.text(beforeText))
+    }
+    // Strip trailing soft/line breaks between preceding content and the math block
+    while let last = beforeInlines.last {
+      if case .softBreak = last { beforeInlines.removeLast() }
+      else if case .lineBreak = last { beforeInlines.removeLast() }
+      else { break }
+    }
+    if !beforeInlines.isEmpty {
+      result.append(.paragraph(content: beforeInlines.extractingMath()))
+    }
+
+    // The math block
+    result.append(.mathBlock(expression: expression))
+
+    // Everything after the placeholder: remaining text + subsequent inline nodes
+    var afterInlines: [InlineNode] = []
+    let afterText = String(text[suffixRange.upperBound...])
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if !afterText.isEmpty {
+      afterInlines.append(.text(afterText))
+    }
+    if index + 1 < content.count {
+      afterInlines.append(contentsOf: content[(index + 1)...])
+    }
+    // Strip leading soft/line breaks after the math block
+    while let first = afterInlines.first {
+      if case .softBreak = first { afterInlines.removeFirst() }
+      else if case .lineBreak = first { afterInlines.removeFirst() }
+      else { break }
+    }
+    if !afterInlines.isEmpty {
+      result.append(contentsOf: extractBlockMathFromParagraph(content: afterInlines))
+    }
+
+    return result.isEmpty ? [.paragraph(content: content.extractingMath())] : result
   }
 
-  let searchStart = prefixRange.upperBound
-  guard let suffixRange = fullText.range(of: suffix, range: searchStart..<fullText.endIndex) else {
-    return [.paragraph(content: content.extractingMath())]
-  }
-
-  // Decode the base64 expression
-  let encoded = String(fullText[searchStart..<suffixRange.lowerBound])
-  guard let expression = MathPreprocessor.decode(encoded), !expression.isEmpty else {
-    return [.paragraph(content: content.extractingMath())]
-  }
-
-  var result: [BlockNode] = []
-
-  // Text before the placeholder
-  let beforeText = String(fullText[..<prefixRange.lowerBound])
-    .trimmingCharacters(in: .whitespacesAndNewlines)
-  if !beforeText.isEmpty {
-    result.append(.paragraph(content: [InlineNode.text(beforeText)].extractingMath()))
-  }
-
-  // The math block
-  result.append(.mathBlock(expression: expression))
-
-  // Text after the placeholder — recursively process for more block math
-  let afterText = String(fullText[suffixRange.upperBound...])
-    .trimmingCharacters(in: .whitespacesAndNewlines)
-  if !afterText.isEmpty {
-    let afterBlocks = extractBlockMathFromParagraph(content: [.text(afterText)])
-    result.append(contentsOf: afterBlocks)
-  }
-
-  return result.isEmpty ? [.paragraph(content: content.extractingMath())] : result
+  // No block math placeholder found — extract inline math only
+  return [.paragraph(content: content.extractingMath())]
 }
